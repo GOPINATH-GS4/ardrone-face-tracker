@@ -15,12 +15,17 @@ static const std::string OPENCV_WINDOW = "Image window";
 extern struct COMMAND control(cv::Mat src);
 extern int  get_frames_without_image();
 extern void  reset_frames_without_image();
+extern void debug(PID p);
+
 struct COMMAND cmd;
 bool tracking = false;
+bool stoptracking = false;
 int altitude = 0;
 int skip_count = 0;
 #define SKIP_COUNT 5
 #define NO_FRAMES_LIMIT 10
+#define HOVER_ALTITUDE 650
+#define HOVER_ALTITUDE_MIN 300
 class ImageConverter
 {
   ros::NodeHandle nh_;
@@ -31,9 +36,8 @@ class ImageConverter
   std_msgs::Empty empty;
   std_srvs::Empty flattrim;
   geometry_msgs::Twist command;
-  ros::Subscriber startTracking;
+  ros::Subscriber startTracking, done;
   ros::Subscriber navdata;
-
 public:
   ImageConverter()
     : it_(nh_)
@@ -44,6 +48,9 @@ public:
       &ImageConverter::imageCb, this);
 
 	startTracking = nh_.subscribe("/ardrone/track", 1, &ImageConverter::tracker, this);
+	done = nh_.subscribe("/ardrone/finish", 1, &ImageConverter::finish, this);
+
+
 	navdata = nh_.subscribe("/ardrone/navdata", 100, &ImageConverter::navdataCb, this);
 
 	takeoff = nh_.advertise<std_msgs::Empty>("/ardrone/takeoff",1);
@@ -65,7 +72,6 @@ public:
 	printf("Taking off .....\n");
 	sleep(2);
 	takeoff.publish(empty);		
-
   }
 
   ~ImageConverter()
@@ -73,12 +79,22 @@ public:
     cv::destroyWindow(OPENCV_WINDOW);
   }
 
+  void finish(const std_msgs::Empty msg) {
+
+	printf("Tracking true");
+	tracking = false;
+	stoptracking = true;	
+	land.publish(msg);	
+  }
+
   void tracker(const std_msgs::Empty msg) {
 	printf("Tracking true");
 	tracking = true;
+		
   }
   void navdataCb(const ardrone_autonomy::NavdataConstPtr msg) {
 	altitude = msg->altd;
+	printf("Altitude : %d\n" , altitude);
 	if(msg->tags_count > 0) {
 		printf("Tag detected ...\n");
 	}
@@ -117,8 +133,22 @@ public:
 		command.linear.z = within(cmd.commandy, -1.0, 1.0);
 
 		if(get_frames_without_image() > NO_FRAMES_LIMIT) {
+
 			command.angular.z = .9;
 			reset_frames_without_image();
+
+			bool goal = false;
+			if(abs(altitude - HOVER_ALTITUDE) > 20) 
+				goal = false;
+
+			if(abs(altitude - HOVER_ALTITUDE) < 20 || altitude > HOVER_ALTITUDE)
+				goal = true;
+			
+			if(!goal) {
+				printf("Way too lo ...%d\n", altitude);
+				command.linear.z = 0.001;
+				std::cout << c << std::endl;
+			}
 		}
 		else 
 			command.angular.x = command.angular.y = command.angular.z = 0;
@@ -129,7 +159,15 @@ public:
 		drone.publish(command);
 	
 	}
-	else {}
+	else if(stoptracking) {
+		command.linear.x = 0;
+		command.linear.y = 0;
+		command.linear.x = 0;
+		command.angular.x = 0;
+		command.angular.y = 0;
+		command.angular.z = 0;
+		drone.publish(command);
+	}
 
     // Update GUI Window
     cv::imshow(OPENCV_WINDOW, cv_ptr->image);

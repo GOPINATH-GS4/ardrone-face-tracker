@@ -21,12 +21,13 @@ void PID::init(double Kp, double Ki, double Kd)
     this->kp = Kp;
     this->ki = Ki;
     this->kd = Kd;
-    this->lastTime = time(NULL);
+    this->lastTime = 0;
     this->lastErr = INFINITY;
     this->errSum = this->lastErr = 0;
     this->boundSet = false;
 	this->input = 0;
 	this->distance = 0;
+	this->direction = 0;
 	this->area = 0.0;
 }
 int PID::edistance(markers point1, markers point2) {
@@ -104,10 +105,11 @@ void PID::compute(pidElement p)
 {
     unsigned long now = time(NULL);
     
-    float dt = (now - this->lastTime);
+    long dt = (now - this->lastTime);
     
     double de = 0;
-    double error;
+    double error = 0;
+	
     if (this->lastTime != 0 && dt > 0) {
          // Compute de (error derivation)
         if (this->lastErr < INFINITY) {
@@ -125,25 +127,14 @@ void PID::compute(pidElement p)
         }
         // Integrate error
         this->errSum += error * dt;
-        this->input = this->kp * error + this->ki * this->errSum  + this->kd * de;
-		if(debug) {
-			printf("%lf,%lf,%d,%d,%lf,%lf,%f,%f,%f\n", error, input, this->setpoint.x, this->setpoint.y, this->setpoint.radius, this->setpoint.area , this->kp, this->ki, this->kd);
-		}
-    	this->lastTime= now;
-    	this->lastErr = error;
     }
 
-    // Update our trackers
-    /*
-    printf("*************************\n");
-    printf("Last time %ld\n", this->lastTime);
-    printf("now %ld\n", now);
-    printf("Last error %f\n", this->lastErr);
-    printf(" error %f\n", error);
-    printf("Error sum %f\n" , this->errSum);
-    printf("dErr %lf\n", de);
-    printf("*************************\n");
-    */
+	if(debug) {
+		printf("Error: %lf, Input:%lf, Setpoint(x): %d, Setpoint(y):%d,Setpoint(radius): %lf, Setpoint(area):%lf,Output(x):%d,Output(y):%d,Output(radius):%f,Output(area): %f, kp: %f,ki:%f,kd:%f\n", error, this->input, this->setpoint.x, this->setpoint.y, this->setpoint.radius, this->setpoint.area , this->output.x, this->output.y, this->output.radius,this->output.area,this->kp, this->ki, this->kd);
+	}
+	this->lastTime= now;
+	this->lastErr = error;
+	this->input = this->kp * error + this->ki * this->errSum  + this->kd * de;
 }
 
 float PID::getArea() {

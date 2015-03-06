@@ -26,10 +26,10 @@ String fcn = "./haarcascade_frontalface_alt.xml";
 String upperbody = "./haarcascade_frontalface_default.xml";
 CascadeClassifier fc, up;
 
-PID pid(.2,0,.35);
-PID pidx(.2,0,.35);
-PID pidy(.2,0,.35);
-PID pidz(.05,0,.09);
+PID pid(.8,0,.5);
+PID pidx(.5,0,.35);
+PID pidy(.5,0,.35);
+PID pidz(.3,0,.35);
 bool firstTime = true;
 bool prevSet = false;
 markers bounds;
@@ -140,9 +140,9 @@ struct COMMAND calculate_command(PID pid_lr, PID pid_ud, PID pid_fb) {
 			c1.commandx = c1.commandy = c1.commandz = 0;
 	}
 	else {
-    	c1.commandx = pid_lr.getDirection() *  pid_lr.getInput() * .5  / bounds.x;
-    	c1.commandy = pid_ud.getDirection() * pid_ud.getInput()  * .5 / bounds.y;
-    	c1.commandz = pid_fb.getDirection() * pid_fb.getInput()  * .5 / bounds.radius;
+    	c1.commandx = pid_lr.getDirection() *  pid_lr.getInput() / bounds.x;
+    	c1.commandy = pid_ud.getDirection() * pid_ud.getInput() / bounds.y;
+    	c1.commandz = pid_fb.getDirection() * pid_fb.getInput() / bounds.radius;
 		prev = c1;
 		prevSet = true;
 		frames_without_image = 0;
@@ -156,84 +156,6 @@ int get_frames_without_image() {
 	return frames_without_image;
 }
 
-struct COMMAND control1(cv::Mat src, int px, int py, int pz) {
-  
-       
-	if (firstTime) {
-
-		struct COMMAND c;
-		c.commandx = c.commandy = c.commandz = 0.0;
-		markers p;
-		bounds.x = src.cols;
-		bounds.y = src.rows;
-		bounds.area = (src.rows/ 10) * (src.rows/ 10) * 3.14; 
-		bounds.radius = (src.rows/10);
-		printf("Bounds area : %f\n", bounds.area);
-		printf("bounds radius: %f\n" , bounds.radius);
-		p.x = src.cols / 2;
-		p.y = src.rows /2;
-		p.area = bounds.area;
-		p.radius = bounds.radius;
-		firstTime = false;
-		pidx.setPoint(p);
-		pidy.setPoint(p);
-		pidz.setPoint(p);
-		pidx.setBounds(bounds);
-		pidy.setBounds(bounds);
-		pidz.setBounds(bounds);
-	}
-    
-     markers position;
-	 position.x =  px;
-	 position.y =  py;
-	 position.z =  pz;
-        
-     /* Make sure the center point of the detected face is within the image */
-        
-     if(position.x != 0 && position.y != 0 && position.x <= src.cols
-     && position.y <= src.rows) {
-        
-        // Exit loop pid which monitors the goal state
-		markers setPoint, tmp;
-		tmp = position;
-
-		setPoint = pid.getSetPoint();
-            
-		pid.setOutput(position);
-        pid.compute(POINTS);
-        // debug(pid);
-            
-		position = tmp;
-        // Control Drones Roll (left/right)
-        setPoint = pidx.getSetPoint();
-        position.y = -1;
-        pidx.setOutput(position);
-        pidx.compute(POINTS);
-        debug(pidx);
-            
-		position = tmp;
-        // Control drones faz (climb/desent)
-        setPoint = pidy.getSetPoint();
-        position.x = -1;
-        pidy.setOutput(position);
-        pidy.compute(POINTS);
-        //debug(pidy);
-            
-		position = tmp;
-		position.x = -1;
-		position.y = -1;
-        // Control drones pitch (forward/backward)
-        setPoint = pidz.getSetPoint();
-        pidz.setOutput(position);
-        pidz.compute(POINTS);
-        //debug(pidz);
-            
-	} else {
-		pid.init(.5, 0, .35);
-	}
-
-   return calculate_command(pidx, pidy, pidz);
-}
 struct COMMAND control(cv::Mat src) {
     
   
@@ -249,8 +171,8 @@ struct COMMAND control(cv::Mat src) {
 
 		bounds.x = src.cols;
 		bounds.y = src.rows;
-		bounds.area = (src.rows/ 8) * (src.rows/ 8) * 3.14; 
-		bounds.radius = (src.rows / 8);
+		bounds.area = (src.rows/ 6) * (src.rows/ 6) * 3.14; 
+		bounds.radius = (src.rows / 6);
 		printf("Bounds area : %f\n", bounds.area);
 		printf("bounds radius: %f\n" , bounds.radius);
 		p.x = src.cols/2;
@@ -292,7 +214,7 @@ struct COMMAND control(cv::Mat src) {
         position.y = -1;
         pidx.setOutput(position);
         pidx.compute(POINTS);
-        // debug(pidx);
+        //debug(pidx);
             
 		position = tmp;
         // Control drones faz (climb/desent)
@@ -312,7 +234,6 @@ struct COMMAND control(cv::Mat src) {
         //debug(pidz);
             
 	} else {
-		pid.init(.5, 0, .35);
 	}
 
    return calculate_command(pidx, pidy, pidz);
